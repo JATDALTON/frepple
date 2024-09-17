@@ -62,13 +62,13 @@ struct ForecastMeasureComputed::ItemAttribute
   inline double operator()(parameter_list_t parameters) {
     auto attr = to_str(string_t(parameters[0]));
     if (attr == "cost")
-      return fcstbckt->getItem()->getCost();
+      return fcstdata->getItem()->getCost();
     else if (attr == "volume")
-      return fcstbckt->getItem()->getVolume();
+      return fcstdata->getItem()->getVolume();
     else if (attr == "weight")
-      return fcstbckt->getItem()->getWeight();
+      return fcstdata->getItem()->getWeight();
     else
-      return fcstbckt->getItem()->getDoubleProperty(attr, 0);
+      return fcstdata->getItem()->getDoubleProperty(attr, 0);
   }
 };
 
