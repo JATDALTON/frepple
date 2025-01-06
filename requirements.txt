@@ -12,6 +12,7 @@ Markdown == 3.1.1
 openpyxl == 3.0.9
 lxml == 5.1.0
 PyJWT == 2.4.0
+orbit-ml == 1.1.4.9
 urllib3 < 2
 requests == 2.32.3
 python-dateutil == 2.8.1
