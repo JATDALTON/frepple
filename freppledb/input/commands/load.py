@@ -238,7 +238,8 @@ class checkBrokenSupplyPath(CheckTask):
                         with cte as (
                         select 'Unknown supplier' as supplier_id, item_id, location_id from demand where status in ('open','quote')
                         union
-                        select 'Unknown supplier', operationmaterial.item_id, operation.location_id from operationmaterial
+                        select 'Unknown supplier', operationmaterial.item_id,
+                        coalesce(operationmaterial.location_id, operation.location_id) from operationmaterial
                         inner join operation on operation.name = operationmaterial.operation_id
                         where operationmaterial.quantity < 0
                         %s
@@ -277,7 +278,8 @@ class checkBrokenSupplyPath(CheckTask):
                         where itemsupplier.location_id is null and coalesce(itemsupplier.effective_end, %%s) >= %%s
                         and itemsupplier.priority is distinct from 0
                         union
-                        select 'Unknown supplier', operationmaterial.item_id, operation.location_id from operationmaterial
+                        select 'Unknown supplier', operationmaterial.item_id,
+                        coalesce(operationmaterial.location_id, operation.location_id) from operationmaterial
                         inner join operation on operation.name = operationmaterial.operation_id
                         where operationmaterial.quantity > 0 and coalesce(operation.effective_end, %%s) >= %%s
                         and operation.priority is distinct from 0
@@ -332,7 +334,7 @@ class loadParameter(LoadTask):
             with connections[database].chunked_cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT name, value
+                    SELECT name, trim(value)
                     FROM common_parameter
                     where name in (
                        'currentdate', 'last_currentdate',
@@ -2145,7 +2147,8 @@ class loadOperationPlans(LoadTask):
                         case when operationplan.plan ? 'setupoverride'
                           then (operationplan.plan->>'setupoverride')::integer
                         end,
-                        coalesce(dmd.name, null)
+                        coalesce(dmd.name, null),
+                        remark
                         %s
                         FROM operationplan
                         LEFT OUTER JOIN (select name from demand
@@ -2167,8 +2170,8 @@ class loadOperationPlans(LoadTask):
                             dmd = frepple.demand(name=i[17])
                         elif with_fcst and i[18] and i[19]:
                             dmd = frepple.demand_forecastbucket(
-                                forecast=frepple.demand_forecast(name=i[18]),
-                                start=i[19],
+                                forecast=frepple.demand_forecast(name=i[19]),
+                                start=i[20],
                             )
                         else:
                             dmd = None
@@ -2186,6 +2189,7 @@ class loadOperationPlans(LoadTask):
                                 batch=i[13],
                                 quantity_completed=i[14],
                                 resources=i[15],
+                                remark=i[18],
                             )
                             if opplan:
                                 if i[5] == "confirmed":
@@ -2215,6 +2219,7 @@ class loadOperationPlans(LoadTask):
                                 source=i[6],
                                 create=create_flag,
                                 batch=i[13],
+                                remark=i[18],
                             )
                             if opplan and i[5] == "confirmed":
                                 if not consume_capacity:
@@ -2234,6 +2239,7 @@ class loadOperationPlans(LoadTask):
                                 source=i[6],
                                 create=create_flag,
                                 batch=i[13],
+                                remark=i[18],
                             )
                             if opplan:
                                 if i[5] == "confirmed":
@@ -2260,6 +2266,7 @@ class loadOperationPlans(LoadTask):
                                 source=i[6],
                                 create=create_flag,
                                 batch=i[13],
+                                remark=i[18],
                             )
                             if opplan:
                                 if i[5] == "confirmed":
@@ -2276,7 +2283,7 @@ class loadOperationPlans(LoadTask):
                             continue
 
                         if opplan:
-                            idx = 20 if with_fcst else 18
+                            idx = 21 if with_fcst else 19
                             for a in getAttributes(OperationPlan):
                                 setattr(opplan, a[0], i[idx])
                                 idx += 1
@@ -2303,7 +2310,7 @@ class loadOperationPlans(LoadTask):
                             where operationplan_id = operationplan.reference
                             order by resource_id
                         ),
-                        coalesce(dmd.name, null), coalesce(forecast.name, null), operationplan.due %s
+                        coalesce(dmd.name, null), remark, coalesce(forecast.name, null), operationplan.due %s
                         FROM operationplan
                         INNER JOIN (select reference
                         from operationplan %s
@@ -2347,7 +2354,8 @@ class loadOperationPlans(LoadTask):
                             where operationplan_id = operationplan.reference
                             order by resource_id
                         ),
-                        coalesce(dmd.name, null) %s
+                        coalesce(dmd.name, null),
+                        remark %s
                         FROM operationplan
                         INNER JOIN (select reference
                         from operationplan %s
@@ -2386,6 +2394,7 @@ class loadOperationPlans(LoadTask):
                             statusNoPropagation=i[5],
                             batch=i[8],
                             resources=i[9],
+                            remark=i[11],
                         )
                         if opplan:
                             if i[5] == "confirmed":
@@ -2406,12 +2415,12 @@ class loadOperationPlans(LoadTask):
                                     )
                             if i[10]:
                                 opplan.demand = frepple.demand(name=i[10])
-                            elif with_fcst and i[11] and i[12]:
+                            elif with_fcst and i[12] and i[13]:
                                 opplan.demand = frepple.forecastbucket(
-                                    forecast=frepple.demand_forecast(name=i[11]),
-                                    start=i[12],
+                                    forecast=frepple.demand_forecast(name=i[12]),
+                                    start=i[13],
                                 )
-                            idx = 13 if with_fcst else 11
+                            idx = 14 if with_fcst else 12
                             for a in getAttributes(OperationPlan):
                                 setattr(opplan, a[0], i[idx])
                                 idx += 1
